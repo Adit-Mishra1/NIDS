@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NIDS Client — Send Test Requests</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <style>
+    fieldset { border: 1px solid #eee; padding: 16px; border-radius: 12px; }
+    legend { padding: 0 6px; }
+    label { display: block; margin: 6px 0 2px; }
+    input[type=text], input[type=number], select, textarea { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 8px; }
+    textarea { min-height: 120px; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .btn { padding: 10px 14px; border-radius: 10px; border: 1px solid #111; background: #111; color: white; cursor: pointer; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .result { padding: 12px; border-radius: 12px; margin-top: 16px; }
+    .ok { background: #e6ffed; border: 1px solid #b7ebc6; }
+    .err { background: #ffecec; border: 1px solid #ffb3b3; }
+    .radio-group { display: flex; gap: 16px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>NIDS Client</h1>
+    <div class="muted">Server target: <code>{{ server_url }}</code></div>
+  </header>
+
+  <main>
+    <!-- Important: enctype added for file upload -->
+    <form method="POST" enctype="multipart/form-data">
+      <fieldset>
+        <legend>Request Properties</legend>
+        <div class="row">
+          <div>
+            <label for="src_ip">Source IP (textbox)</label>
+            <input id="src_ip" name="src_ip" type="text" placeholder="e.g. 192.168.1.10 or 66.66.66.66" />
+          </div>
+          <div>
+            <label for="dst_port">Target Port (dropdown)</label>
+            <select id="dst_port" name="dst_port">
+              <option value="80">80 (HTTP)</option>
+              <option value="443">443 (HTTPS)</option>
+              <option value="8080">8080</option>
+              <option value="22">22 (SSH - risky)</option>
+              <option value="23">23 (Telnet - risky)</option>
+              <option value="445">445 (SMB - risky)</option>
+              <option value="3389">3389 (RDP - risky)</option>
+              <option value="1433">1433 (MSSQL - risky)</option>
+              <option value="5900">5900 (VNC - risky)</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="margin-top:12px;">
+          <span>HTTP Method (radio buttons)</span>
+          <div class="radio-group">
+            <label><input type="radio" name="method" value="GET" checked /> GET</label>
+            <label><input type="radio" name="method" value="POST" /> POST</label>
+            <label><input type="radio" name="method" value="PUT" /> PUT</label>
+            <label><input type="radio" name="method" value="DELETE" /> DELETE</label>
+          </div>
+        </div>
+
+        <div class="row" style="margin-top:12px;">
+          <div>
+            <!-- REPLACED payload textarea with file upload -->
+            <label for="file">Payload (file upload)</label>
+            <input id="file" name="file" type="file" required />
+          </div>
+          <div>
+            <label for="meta">Metadata (textarea)</label>
+            <textarea id="meta" name="meta" placeholder="Any extra metadata..."></textarea>
+          </div>
+        </div>
+
+        <div style="margin-top:16px;">
+          <button class="btn" type="submit">Send to NIDS Server</button>
+        </div>
+      </fieldset>
+    </form>
+
+    {% if result %}
+      {% if result.ok %}
+        <div class="result {{ 'ok' if result.allowed else 'err' }}">
+          <strong>Verdict:</strong> {{ result.verdict }} — p(harmful)={{ result.prob_harmful }}
+        </div>
+      {% else %}
+        <div class="result err">
+          <strong>Error:</strong> {{ result.error }}
+        </div>
+      {% endif %}
+    {% endif %}
+  </main>
+</body>
+</html>

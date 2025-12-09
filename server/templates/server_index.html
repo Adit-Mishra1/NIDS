@@ -1,0 +1,252 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Demo NIDS Server — Dashboard</title>
+  <style>
+    :root{
+      --bg:#ffffff;
+      --muted:#666;
+      --good:#e6ffed;
+      --bad:#fff6f6;
+      --accent:#0b63d6;
+      --card:#f8f9fb;
+      --pill-yes-bg:#e6ffed;
+      --pill-yes-border:#b7ebc6;
+      --pill-no-bg:#fff;
+      --pill-no-border:#ddd;
+      --pill-blocked-bg:#ffecec;
+      --pill-blocked-border:#ffb3b3;
+      --pill-error-bg:#fff4e6;
+      --pill-error-border:#ffd1a8;
+    }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial; margin: 18px; background: var(--bg); color:#111; }
+    h1 { margin: 0 0 6px 0; font-size:20px; }
+    .muted { color: var(--muted); margin-bottom: 12px; }
+
+    .layout { display: grid; grid-template-columns: 360px 1fr; gap: 18px; align-items: start; }
+
+    /* Card */
+    .card { background: var(--card); padding: 12px; border-radius: 8px; box-shadow: 0 1px 0 rgba(0,0,0,0.03); }
+
+    /* Form */
+    label { display:block; font-size:13px; margin-bottom:6px; color:#222; }
+    input[type="text"], input[type="number"], select, textarea {
+      width:100%; padding:8px 10px; border-radius:6px; border:1px solid #ddd; box-sizing:border-box; font-size:13px;
+      margin-bottom:10px;
+    }
+    input[type="file"] { margin-bottom:10px; }
+    button { background:var(--accent); color:white; border:none; padding:10px 12px; border-radius:8px; cursor:pointer; font-weight:600; }
+    button[disabled]{ opacity:0.6; cursor:default; }
+
+    /* Result */
+    .result { margin-top:10px; padding:10px; border-radius:8px; background:#fff; border:1px solid #eee; font-size:14px; }
+    .verdict { font-weight:700; display:inline-block; padding:6px 10px; border-radius:999px; margin-left:8px; font-size:13px; }
+
+    /* Logs table */
+    table { border-collapse: collapse; width: 100%; margin-top: 6px; background:white; }
+    th, td { border: 1px solid #e6e6e6; padding: 8px 10px; text-align: left; font-size: 13px; vertical-align: middle; }
+    th { background:#fafafa; font-weight:600; }
+    tr.harmless { background: #f6fff6; }
+    tr.harmful { background: #fff6f6; }
+    .small { font-size: 12px; color: #444; }
+
+    .pill { display:inline-block; padding: 4px 8px; border-radius: 999px; font-size:12px; }
+    .yes { background:var(--pill-yes-bg); border:1px solid var(--pill-yes-border); color:#064c24; }
+    .no { background:var(--pill-no-bg); border:1px solid var(--pill-no-border); color:#444; }
+    .blocked { background:var(--pill-blocked-bg); border:1px solid var(--pill-blocked-border); color:#550000; }
+    .error { background:var(--pill-error-bg); border:1px solid var(--pill-error-border); color:#663d00; }
+
+    /* responsive */
+    @media (max-width:880px){
+      .layout { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <h1>Demo NIDS Server — Dashboard</h1>
+  <div class="muted">Scan files from here and watch the server decide (forwards benign files to Client2). Logs auto-refresh.</div>
+
+  <div class="layout">
+    <!-- LEFT: Scan Form -->
+    <div class="card" id="scan-card">
+      <h3 style="margin:0 0 8px 0;">Scan a file</h3>
+
+      <form id="scan-form">
+        <label for="src_ip">Source IP</label>
+        <input type="text" id="src_ip" name="src_ip" placeholder="e.g. 10.0.0.5" required value="127.0.0.1">
+
+        <label for="dst_port">Destination Port</label>
+        <input type="number" id="dst_port" name="dst_port" placeholder="80" value="80" required>
+
+        <label for="method">Method</label>
+        <select id="method" name="method">
+          <option value="GET">GET</option>
+          <option value="POST">POST</option>
+          <option value="PUT">PUT</option>
+        </select>
+
+        <label for="meta">Meta (optional)</label>
+        <textarea id="meta" name="meta" rows="2" placeholder="Any small text info"></textarea>
+
+        <label for="file">File to scan</label>
+        <input type="file" id="file" name="file" required>
+
+        <div style="display:flex; gap:8px; align-items:center;">
+          <button id="scan-btn" type="submit">Scan file</button>
+          <div id="scan-loading" style="display:none; color:var(--muted); font-size:13px;">Scanning…</div>
+        </div>
+
+        <div id="scan-result" class="result" style="display:none;"></div>
+      </form>
+
+      <div style="margin-top:12px; font-size:12px; color:var(--muted);">
+        Backend model and ingestion logic are used from <code>model.py</code> and <code>app_server.py</code>. :contentReference[oaicite:2]{index=2} :contentReference[oaicite:3]{index=3}
+      </div>
+    </div>
+
+    <!-- RIGHT: Logs -->
+    <div class="card" id="logs-card">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h3 style="margin:0 0 8px 0;">Recent decisions</h3>
+        <div style="font-size:13px; color:var(--muted);">Auto-refresh every 3s</div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Src IP</th>
+            <th>Port</th>
+            <th>Method</th>
+            <th>Filename</th>
+            <th>Prob</th>
+            <th>Verdict</th>
+            <th>Allowed</th>
+            <th>Forwarded</th>
+            <th>Reason</th>
+          </tr>
+        </thead>
+        <tbody id="log-body">
+          <!-- filled by JS -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    // helper to render forwarded pill
+    function forwardedHtml(item) {
+      if (!item.allowed) return '<span class="pill blocked">Blocked</span>';
+      if (item.forwarded_to_client2 === true) return '<span class="pill yes">Yes</span>';
+      if (item.forwarded_to_client2 === false && item.forward_error) return `<span class="pill error" title="${(item.forward_error||'')}">Error</span>`;
+      return '<span class="pill no">No</span>';
+    }
+
+    // refresh logs from /logs endpoint
+    async function refreshLogs() {
+      try {
+        const res = await fetch('/logs');
+        if (!res.ok) throw new Error('Failed to load logs');
+        const data = await res.json();
+        if (!data.ok) throw new Error('Invalid logs response');
+        const tbody = document.getElementById('log-body');
+        tbody.innerHTML = '';
+        data.items.forEach(item => {
+          const tr = document.createElement('tr');
+          // backend sets 'verdict' to 'malware' or 'benign' — adapt for coloring
+          const isBad = (item.verdict && item.verdict.toLowerCase() === 'malware');
+          tr.className = isBad ? 'harmful' : 'harmless';
+
+          const prob = (typeof item.prob_malware !== 'undefined') ? Number(item.prob_malware).toFixed(4) : '';
+          const verdict = item.verdict || '';
+          const allowed = item.allowed ? 'Yes' : 'No';
+
+          tr.innerHTML = `
+            <td class="small">${item.ts || ''}</td>
+            <td>${item.src_ip || ''}</td>
+            <td>${item.dst_port || ''}</td>
+            <td>${item.method || ''}</td>
+            <td>${item.filename || ''}</td>
+            <td>${prob}</td>
+            <td>${verdict}</td>
+            <td>${allowed}</td>
+            <td>${forwardedHtml(item)}</td>
+            <td>${item.reason || ''}</td>
+          `;
+          tbody.appendChild(tr);
+        });
+      } catch (err) {
+        console.error('Failed to refresh logs:', err);
+      }
+    }
+
+    // submit form to /ingest using fetch + FormData
+    document.getElementById('scan-form').addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const btn = document.getElementById('scan-btn');
+      const loading = document.getElementById('scan-loading');
+      const resultBox = document.getElementById('scan-result');
+      btn.disabled = true;
+      loading.style.display = 'inline';
+      resultBox.style.display = 'none';
+      resultBox.innerHTML = '';
+
+      try {
+        const form = document.getElementById('scan-form');
+        const fd = new FormData(form);
+
+        // Send request
+        const resp = await fetch('/ingest', { method: 'POST', body: fd });
+        const json = await resp.json();
+
+        if (!resp.ok) {
+          const errText = json && json.error ? json.error : `Request failed (${resp.status})`;
+          resultBox.style.display = 'block';
+          resultBox.innerHTML = `<div style="color:#660000;"><strong>Error:</strong> ${errText}</div>`;
+        } else {
+          // JSON returns { ok: True, record: {...}, verdict, prob_malware, allowed }
+          const verdict = json.verdict || (json.record && json.record.verdict) || '';
+          const prob = (typeof json.prob_malware !== 'undefined') ? Number(json.prob_malware).toFixed(4) : (json.record && json.record.prob_malware) || '';
+          const allowed = json.allowed !== undefined ? json.allowed : (json.record && json.record.allowed);
+
+          // show friendly result
+          let color = '#0a7a0a';
+          if (!allowed) color = '#990000';
+          resultBox.style.display = 'block';
+          resultBox.innerHTML = `
+            <div style="display:flex; align-items:center; gap:12px;">
+              <div>
+                <div style="font-size:15px;">Verdict: <span class="verdict" style="background:${allowed ? '#e8ffea' : '#ffecec'}; color:${allowed ? '#0b5b0b' : '#5b0000'};">${verdict}</span></div>
+                <div style="margin-top:6px; color:var(--muted); font-size:13px;">Prob malware: ${prob}</div>
+              </div>
+              <div style="margin-left:auto; font-size:13px; color:var(--muted)">Response: ${json.ok ? 'OK' : 'Error'}</div>
+            </div>
+          `;
+
+          // clear file input (so user can re-scan same file if needed)
+          const fileInput = document.getElementById('file');
+          fileInput.value = '';
+
+          // refresh logs to show the new record
+          await refreshLogs();
+        }
+      } catch (err) {
+        console.error(err);
+        resultBox.style.display = 'block';
+        resultBox.innerHTML = `<div style="color:#663300;"><strong>Error:</strong> ${err.message}</div>`;
+      } finally {
+        btn.disabled = false;
+        loading.style.display = 'none';
+      }
+    });
+
+    // initial logs load + periodic refresh
+    window.addEventListener('load', () => {
+      refreshLogs();
+      setInterval(refreshLogs, 3000);
+    });
+  </script>
+</body>
+</html>
