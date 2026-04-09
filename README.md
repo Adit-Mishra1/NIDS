@@ -1,6 +1,6 @@
 # Demo Network Intrusion Detection System (Python, Flask, ML)
 
-This is a **two-app** demo that lets you simulate traffic from a client UI and watch a server-side NIDS classify each request as **harmless** or **harmful** in real time.
+This is a **prototype network simulation** demo that lets you simulate traffic from a client UI and watch a server-side NIDS classify each request as **harmless** or **harmful** in real time.
 
 ## Structure
 
@@ -27,10 +27,10 @@ nids-project/
 ## Features
 
 - **Separate Client & Server**
-  - **Client**: Choose attributes (textbox, textarea, radio buttons, dropdown) and send a request.
+  - **Client**: Choose attributes (Source IP, Metadata, Payload, Port) and send a request.
   - **Server**: Receives, classifies (ML/heuristic), and **logs** each request.
 - **ML Module**
-  - `server/model.py` exposes `NIDSModel` using a scikit-learn model **if** `model.pkl` exists.
+  - `server/model.py` exposes `NIDSModel` using a LightGBM model **if** `model.pkl` exists.
   - If no model is present, it falls back to a **heuristic** scorer (weighted logistic).
   - Features include: blacklisted IP, risky port, payload/meta length, simple SQLi/XSS signatures, HTTP method one-hot.
 - **Real-time Logs**
